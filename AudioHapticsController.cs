@@ -11,17 +11,19 @@ public class AudioHapticsController : MonoBehaviour
 
     private void Start()
     {
-        // Assign the first gamepad available
-        gamepad = Gamepad.current;
+        if (Gamepad.current == null)
+        {
+            enabled = false;
+            return;
+        }
+        else
+        {
+            gamepad = Gamepad.current;
+        }
     }
 
     private void Update()
     {
-        if (gamepad == null)
-        {
-            return;
-        }
-
         // Analyze the audio data
         float[] spectrumData = new float[256];
         AudioListener.GetSpectrumData(spectrumData, 0, FFTWindow.Rectangular);
