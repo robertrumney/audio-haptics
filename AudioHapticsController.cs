@@ -1,62 +1,34 @@
+using System.Linq;
+
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class AudioHapticsController : MonoBehaviour
 {
-    public float lowFrequencyThreshold = 0.2f;
-    public float highFrequencyThreshold = 0.8f;
-    public float maxHapticIntensity = 1.0f;
-
-    private Gamepad gamepad;
-
-    private void Start()
-    {
-        if (Gamepad.current == null)
-        {
-            enabled = false;
-            return;
-        }
-        else
-        {
-            gamepad = Gamepad.current;
-        }
-    }
+    // Adjust size as needed
+    private readonly float[] spectrumData = new float[256]; 
 
     private void Update()
     {
-        // Analyze the audio data
-        float[] spectrumData = new float[256];
+        // Ensure there's a gamepad connected
+        if (Gamepad.current == null) return;
+
+        // Get spectrum data from the AudioListener to capture all audio output
         AudioListener.GetSpectrumData(spectrumData, 0, FFTWindow.Rectangular);
 
-        float lowFrequencyValue = 0f;
-        float highFrequencyValue = 0f;
+        // Split spectrum into high and low frequencies using Linq, assuming cutoff at half
+        int cutoffIndex = spectrumData.Length / 2;
+        float lowFreqAverage = spectrumData.Take(cutoffIndex).Average();
+        float highFreqAverage = spectrumData.Skip(cutoffIndex).Take(cutoffIndex).Average();
 
-        // Calculate low and high frequency values
-        for (int i = 0; i < spectrumData.Length; i++)
-        {
-            if (i < spectrumData.Length * lowFrequencyThreshold)
-            {
-                lowFrequencyValue += spectrumData[i];
-            }
-            else if (i > spectrumData.Length * highFrequencyThreshold)
-            {
-                highFrequencyValue += spectrumData[i];
-            }
-        }
+        // Normalize and adjust vibration intensity
+        float lowFreqVibrationIntensity = Mathf.Clamp(lowFreqAverage * 15, 0, 1);
+        float highFreqVibrationIntensity = Mathf.Clamp(highFreqAverage * 100, 0, 1);
 
-        // Apply haptic feedback based on audio data
-        float lowFreqIntensity = Mathf.Clamp(lowFrequencyValue, 0, maxHapticIntensity);
-        float highFreqIntensity = Mathf.Clamp(highFrequencyValue, 0, maxHapticIntensity);
+        // Average or choose a method to combine the low and high frequencies for vibration
+        float combinedVibrationIntensity = (lowFreqVibrationIntensity + highFreqVibrationIntensity) / 2;
 
-        gamepad.SetMotorSpeeds(lowFreqIntensity, highFreqIntensity);
-    }
-
-    private void OnApplicationQuit()
-    {
-        // Reset haptic feedback when the application quits
-        if (gamepad != null)
-        {
-            gamepad.ResetHaptics();
-        }
+        // Apply vibration
+        Gamepad.current.SetMotorSpeeds(combinedVibrationIntensity, combinedVibrationIntensity);
     }
 }
