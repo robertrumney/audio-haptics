@@ -5,30 +5,46 @@ using UnityEngine.InputSystem;
 
 public class AudioHapticsController : MonoBehaviour
 {
-    // Adjust size as needed
-    private readonly float[] spectrumData = new float[256]; 
+    private readonly float[] spectrumData = new float[256];
+
+    private void Awake()
+    {
+        InputSystem.ResetHaptics();
+    }
+
+    private void OnEnable()
+    {
+        InputSystem.ResumeHaptics();
+    }
+
+    private void OnDisable()
+    {
+        InputSystem.PauseHaptics();
+    }
+
+    public float cutoff = 20;
+
+    // Threshold to avoid slight buzzing
+    public float threshold = 0.01f;
 
     private void Update()
     {
-        // Ensure there's a gamepad connected
         if (Gamepad.current == null) return;
 
         // Get spectrum data from the AudioListener to capture all audio output
         AudioListener.GetSpectrumData(spectrumData, 0, FFTWindow.Rectangular);
 
-        // Split spectrum into high and low frequencies using Linq, assuming cutoff at half
-        int cutoffIndex = spectrumData.Length / 2;
+        // Define the cutoff frequency index based on more perceptual weighting (logarithmic approach)
+        int cutoffIndex = spectrumData.Length / 4; // Reducing the range for low frequencies
+
         float lowFreqAverage = spectrumData.Take(cutoffIndex).Average();
-        float highFreqAverage = spectrumData.Skip(cutoffIndex).Take(cutoffIndex).Average();
+        float highFreqAverage = spectrumData.Skip(cutoffIndex).Take(spectrumData.Length - cutoffIndex).Average();
 
-        // Normalize and adjust vibration intensity
-        float lowFreqVibrationIntensity = Mathf.Clamp(lowFreqAverage * 15, 0, 1);
-        float highFreqVibrationIntensity = Mathf.Clamp(highFreqAverage * 100, 0, 1);
+        // Reduce the multiplication factor for bass response and adjust the upper range more perceptually
+        float lowFreqVibrationIntensity = lowFreqAverage < threshold ? 0 : Mathf.Clamp(lowFreqAverage * 10, 0, 1); // Lower multiplier for bass
+        float highFreqVibrationIntensity = highFreqAverage < threshold ? 0 : Mathf.Clamp(highFreqAverage * 50, 0, 1); // Adjusted multiplier for treble
 
-        // Average or choose a method to combine the low and high frequencies for vibration
-        float combinedVibrationIntensity = (lowFreqVibrationIntensity + highFreqVibrationIntensity) / 2;
-
-        // Apply vibration
-        Gamepad.current.SetMotorSpeeds(combinedVibrationIntensity, combinedVibrationIntensity);
+        // Apply vibration to the gamepad motors
+        Gamepad.current.SetMotorSpeeds(lowFreqVibrationIntensity, highFreqVibrationIntensity);
     }
 }
